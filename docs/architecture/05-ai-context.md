@@ -15,6 +15,9 @@ The engine identity is:
 Core concepts:
 
 - ECS is the world model.
+- Runtime entities use compact generational IDs and are not persistent saved IDs.
+- The first ECS storage path is chunked archetype/table storage for normal components.
+- Sparse side components are deferred and should not affect archetype membership later.
 - Data-Oriented Design guides runtime data layout and system design.
 - Plugins are the main extension mechanism.
 - The scheduler controls system execution.
@@ -65,20 +68,22 @@ Useful local applications:
 
 Current priority:
 
-1. App and plugin system
-2. ECS world model
-3. Resources
-4. Systems and scheduler
-5. Fixed timestep support
-6. Command buffers
-7. Events
-8. Headless execution path
-9. Basic benchmark runner
-10. Asset handles
-11. Basic input/windowing
-12. Basic rendering
-13. Stable IDs for persisted state
-14. Scene/save serialization later
+1. Library crate and thin development CLI
+2. Generational entity allocator
+3. Chunked archetype/table ECS storage
+4. Query API over table storage
+5. Resources
+6. App and plugin system
+7. Systems and scheduler
+8. Fixed timestep support
+9. Command buffers
+10. Events
+11. Headless execution path
+12. Basic benchmark runner
+13. Deterministic simulation particle demo
+14. Asset handles
+15. Stable IDs for persisted state
+16. Basic input/windowing and rendering later
 
 Modularity rules:
 
@@ -87,6 +92,7 @@ Modularity rules:
 - Dependencies should point inward toward core.
 - Simulation must not depend on rendering.
 - Deterministic state must be separated from presentation/editor state.
+- Storage kind, persistence, and deterministic participation must remain separate design axes.
 - Avoid hidden plugin coupling.
 - Prefer composition over inheritance.
 - Use events for notifications, not state ownership.

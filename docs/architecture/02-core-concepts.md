@@ -41,6 +41,16 @@ The ECS is the main world model.
 - System: behavior over matching data
 - World: storage for entities, components, and resources
 
+Runtime `Entity` values should be compact generational IDs. The index addresses an entity slot, and the generation prevents stale references from targeting a newly spawned entity after slot reuse.
+
+Runtime entity IDs are transient. Persistent saves, scenes, prefabs, migrations, and replay references should use separate stable IDs.
+
+The first ECS storage implementation should use chunked archetype/table storage for normal components. Entities are grouped by their table component set, and each archetype is split into chunks with dense columns per component type.
+
+The API should remain storage-agnostic. Engine and game code should depend on `World`, `Entity`, `Component`, `Query`, `Commands`, `Resources`, and `Systems`, not on the internal storage layout.
+
+Sparse side components are a later extension point. They should not affect archetype membership and are intended for high-churn tags, editor-only markers, dirty flags, rare optional metadata, and possibly relationship-like data.
+
 Game objects should generally be composed from components instead of inheritance trees.
 
 Example:

@@ -7,6 +7,12 @@ impl<T: 'static> Component for T {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ComponentId(TypeId);
 
+impl ComponentId {
+    pub(crate) fn of<T: Component>() -> Self {
+        Self(TypeId::of::<T>())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComponentStorage {
     Table,
@@ -20,7 +26,7 @@ pub struct ComponentInfo {
     storage: ComponentStorage,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ComponentRegistry {
     components: Vec<ComponentInfo>,
 }

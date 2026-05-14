@@ -1,6 +1,6 @@
 /// Temporary application shell.
 ///
-/// This exists to establish the libray boundary before the real app/plugin
+/// This exists to establish the library boundary before the real app/plugin
 /// runtime is implemented.
 #[derive(Debug, Default)]
 pub struct App;
@@ -11,6 +11,6 @@ impl App {
     }
 
     pub fn run(self) {
-        todo!("Real runtime loop comes later.")
+        // Real runtime loop comes later.
     }
 }

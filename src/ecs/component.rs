@@ -36,6 +36,18 @@ impl ComponentRegistry {
         self.register_with_storage::<T>(ComponentStorage::Table)
     }
 
+    pub(crate) fn register_table_id(&mut self, id: ComponentId, name: &'static str) {
+        if self.components.iter().any(|info| info.id == id) {
+            return;
+        }
+
+        self.components.push(ComponentInfo {
+            id,
+            name,
+            storage: ComponentStorage::Table,
+        });
+    }
+
     pub fn register_with_storage<T: Component>(
         &mut self,
         storage: ComponentStorage,

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::ecs::{
     component::ComponentRegistry,
     entity::{Entity, EntityAllocator},
-    storage::table::{TableComponentValue, TableEntityLocation, TableStorage},
+    storage::table::{TableComponentKey, TableComponentValue, TableEntityLocation, TableStorage},
 };
 
 const DEFAULT_CHUNK_CAPACITY: usize = 1024;
@@ -33,13 +33,24 @@ impl World {
     }
 
     pub(crate) fn spawn_table(&mut self, components: Vec<TableComponentValue>) -> Entity {
-        for component in &components {
-            self.components
-                .register_table_id(component.id(), component.name());
-        }
+        let keys = components
+            .iter()
+            .map(|component| {
+                let id = self
+                    .components
+                    .register_table_id(component.id(), component.name());
+
+                let order = self
+                    .components
+                    .order(id)
+                    .expect("registered component should have an order");
+
+                TableComponentKey::new(id, order)
+            })
+            .collect::<Vec<_>>();
 
         let entity = self.entities.spawn();
-        let location = self.table_storage.insert(entity, components);
+        let location = self.table_storage.insert(entity, components, keys);
         self.locations.insert(entity, location);
         entity
     }
@@ -74,9 +85,6 @@ mod tests {
 
     #[derive(Debug, PartialEq)]
     struct Velocity(i32);
-
-    #[derive(Debug, PartialEq)]
-    struct Health(i32);
 
     #[test]
     fn spawn_table_creates_alive_entity() {

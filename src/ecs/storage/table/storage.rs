@@ -1,4 +1,4 @@
-use crate::ecs::{component::ComponentId, entity::Entity};
+use crate::ecs::{entity::Entity, storage::table::TableComponentKey};
 
 use super::{Archetype, TableComponentValue, TableRowLocation};
 
@@ -31,9 +31,12 @@ impl TableStorage {
         &mut self,
         entity: Entity,
         components: Vec<TableComponentValue>,
+        keys: Vec<TableComponentKey>,
     ) -> TableEntityLocation {
-        let component_ids = sorted_component_ids(&components);
-        let archetype = self.find_or_create_archetype(component_ids);
+        let mut keys = keys;
+        keys.sort_by_key(|key| key.order());
+
+        let archetype = self.find_or_create_archetype(keys);
 
         let row = self.archetypes[archetype].push_row(
             entity,
@@ -53,29 +56,18 @@ impl TableStorage {
         self.archetypes.iter().map(Archetype::len).sum()
     }
 
-    fn find_or_create_archetype(&mut self, component_ids: Vec<ComponentId>) -> usize {
+    fn find_or_create_archetype(&mut self, keys: Vec<TableComponentKey>) -> usize {
         if let Some(index) = self
             .archetypes
             .iter()
-            .position(|archetype| archetype.component_ids() == component_ids)
+            .position(|archetype| archetype.components() == keys)
         {
             return index;
         }
 
         let index = self.archetypes.len();
         self.archetypes
-            .push(Archetype::new(component_ids, self.chunk_capacity));
+            .push(Archetype::new(keys, self.chunk_capacity));
         index
     }
-}
-
-fn sorted_component_ids(components: &[TableComponentValue]) -> Vec<ComponentId> {
-    let mut ids = components
-        .iter()
-        .map(TableComponentValue::id)
-        .collect::<Vec<_>>();
-
-    // TODO! Temporary until ComponentRegistry owns stable component ordering.
-    ids.sort_by_key(|id| format!("{id:?}"));
-    ids
 }

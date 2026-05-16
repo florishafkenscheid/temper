@@ -1,6 +1,6 @@
 use std::any::type_name;
 
-use crate::ecs::component::{Component, ComponentId};
+use crate::ecs::component::{Component, ComponentId, ComponentOrder};
 
 use super::StoredComponent;
 
@@ -11,6 +11,7 @@ pub(crate) struct TableComponentValue {
 }
 
 impl TableComponentValue {
+    #[must_use]
     pub(crate) fn new<T: Component>(value: T) -> Self {
         Self {
             id: ComponentId::of::<T>(),
@@ -29,5 +30,26 @@ impl TableComponentValue {
 
     pub(crate) fn into_parts(self) -> (ComponentId, Box<StoredComponent>) {
         (self.id, self.value)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct TableComponentKey {
+    id: ComponentId,
+    order: ComponentOrder,
+}
+
+impl TableComponentKey {
+    #[must_use]
+    pub(crate) fn new(id: ComponentId, order: ComponentOrder) -> Self {
+        Self { id, order }
+    }
+
+    pub(crate) fn id(self) -> ComponentId {
+        self.id
+    }
+
+    pub(crate) fn order(self) -> ComponentOrder {
+        self.order
     }
 }

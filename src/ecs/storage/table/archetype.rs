@@ -1,12 +1,13 @@
 use crate::ecs::{
     component::{Component, ComponentId},
     entity::Entity,
+    storage::table::TableComponentKey,
 };
 
 use super::{Chunk, StoredComponent, TableRowLocation};
 
 pub(crate) struct Archetype {
-    component_ids: Vec<ComponentId>,
+    components: Vec<TableComponentKey>,
     chunk_capacity: usize,
     chunks: Vec<Chunk>,
     len: usize,
@@ -14,12 +15,11 @@ pub(crate) struct Archetype {
 
 impl Archetype {
     #[must_use]
-    pub(crate) fn new(mut component_ids: Vec<ComponentId>, chunk_capacity: usize) -> Self {
-        // TODO! Add stable internal ordering in ComponentRegistry
-        component_ids.sort_by_key(|id| format!("{id:?}"));
+    pub(crate) fn new(mut components: Vec<TableComponentKey>, chunk_capacity: usize) -> Self {
+        components.sort_by_key(|component| component.order());
 
         Self {
-            component_ids,
+            components,
             chunk_capacity,
             chunks: Vec::new(),
             len: 0,
@@ -42,14 +42,24 @@ impl Archetype {
         self.len
     }
 
+    pub(crate) fn chunk_capacity(&self) -> usize {
+        self.chunk_capacity
+    }
+
     #[must_use]
     pub(crate) fn chunk_count(&self) -> usize {
         self.chunks.len()
     }
 
-    #[must_use]
-    pub(crate) fn component_ids(&self) -> &[ComponentId] {
-        &self.component_ids
+    pub(crate) fn components(&self) -> &[TableComponentKey] {
+        &self.components
+    }
+
+    pub(crate) fn component_ids(&self) -> Vec<ComponentId> {
+        self.components
+            .iter()
+            .map(|component| component.id())
+            .collect()
     }
 
     pub(crate) fn push_row(
@@ -59,7 +69,7 @@ impl Archetype {
     ) -> TableRowLocation {
         if self.chunks.last().is_none_or(Chunk::is_full) {
             self.chunks
-                .push(Chunk::new(&self.component_ids, self.chunk_capacity));
+                .push(Chunk::new(&self.component_ids(), self.chunk_capacity()));
         }
 
         let chunk = self.chunks.len() - 1;
@@ -73,6 +83,7 @@ impl Archetype {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ecs::component::ComponentOrder;
 
     #[derive(Debug, PartialEq)]
     struct Position(i32);
@@ -82,6 +93,10 @@ mod tests {
 
     #[derive(Debug, PartialEq)]
     struct Extra;
+
+    fn key(component_id: ComponentId, order: usize) -> TableComponentKey {
+        TableComponentKey::new(component_id, ComponentOrder::new(order))
+    }
 
     fn row(
         position_id: ComponentId,
@@ -99,7 +114,7 @@ mod tests {
     fn pushed_rows_are_dense_within_chunk() {
         let position_id = ComponentId::of::<Position>();
         let velocity_id = ComponentId::of::<Velocity>();
-        let mut archetype = Archetype::new(vec![position_id, velocity_id], 4);
+        let mut archetype = Archetype::new(vec![key(position_id, 0), key(velocity_id, 1)], 4);
 
         let first = archetype.push_row(Entity::new(0, 0), row(position_id, velocity_id, 10, 1));
         let second = archetype.push_row(Entity::new(1, 0), row(position_id, velocity_id, 20, 2));
@@ -114,7 +129,7 @@ mod tests {
     fn archetype_splits_rows_across_chunks_at_capacity() {
         let position_id = ComponentId::of::<Position>();
         let velocity_id = ComponentId::of::<Velocity>();
-        let mut archetype = Archetype::new(vec![position_id, velocity_id], 2);
+        let mut archetype = Archetype::new(vec![key(position_id, 0), key(velocity_id, 1)], 2);
 
         let first = archetype.push_row(Entity::new(0, 0), row(position_id, velocity_id, 10, 1));
         let second = archetype.push_row(Entity::new(1, 0), row(position_id, velocity_id, 20, 2));
@@ -131,7 +146,7 @@ mod tests {
     fn component_columns_align_by_row() {
         let position_id = ComponentId::of::<Position>();
         let velocity_id = ComponentId::of::<Velocity>();
-        let mut archetype = Archetype::new(vec![position_id, velocity_id], 4);
+        let mut archetype = Archetype::new(vec![key(position_id, 0), key(velocity_id, 1)], 4);
 
         let first = archetype.push_row(Entity::new(0, 0), row(position_id, velocity_id, 10, 1));
         let second = archetype.push_row(Entity::new(1, 0), row(position_id, velocity_id, 20, 2));
@@ -158,7 +173,7 @@ mod tests {
     fn component_order_does_not_need_to_match_column_order() {
         let position_id = ComponentId::of::<Position>();
         let velocity_id = ComponentId::of::<Velocity>();
-        let mut archetype = Archetype::new(vec![position_id, velocity_id], 4);
+        let mut archetype = Archetype::new(vec![key(position_id, 0), key(velocity_id, 1)], 4);
 
         let location = archetype.push_row(
             Entity::new(0, 0),
@@ -183,7 +198,7 @@ mod tests {
     fn push_row_rejects_missing_component_for_archetype() {
         let position_id = ComponentId::of::<Position>();
         let velocity_id = ComponentId::of::<Velocity>();
-        let mut archetype = Archetype::new(vec![position_id, velocity_id], 4);
+        let mut archetype = Archetype::new(vec![key(position_id, 0), key(velocity_id, 1)], 4);
 
         archetype.push_row(
             Entity::new(0, 0),
@@ -197,7 +212,7 @@ mod tests {
         let position_id = ComponentId::of::<Position>();
         let velocity_id = ComponentId::of::<Velocity>();
         let extra_id = ComponentId::of::<Extra>();
-        let mut archetype = Archetype::new(vec![position_id, velocity_id], 4);
+        let mut archetype = Archetype::new(vec![key(position_id, 0), key(velocity_id, 1)], 4);
 
         archetype.push_row(
             Entity::new(0, 0),

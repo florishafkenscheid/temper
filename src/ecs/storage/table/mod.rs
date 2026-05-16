@@ -10,4 +10,4 @@ pub(crate) use chunk::Chunk;
 pub(crate) use column::{ComponentColumn, StoredComponent};
 pub(crate) use location::TableRowLocation;
 pub(crate) use storage::{TableEntityLocation, TableStorage};
-pub(crate) use value::TableComponentValue;
+pub(crate) use value::{TableComponentKey, TableComponentValue};

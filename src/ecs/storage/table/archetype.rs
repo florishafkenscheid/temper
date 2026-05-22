@@ -78,6 +78,17 @@ impl Archetype {
 
         TableRowLocation { chunk, row }
     }
+
+    pub(crate) fn remove_row(&mut self, location: TableRowLocation) -> Option<Entity> {
+        let chunk = self
+            .chunks
+            .get_mut(location.chunk)
+            .expect("table row location should reference an existing chunk");
+
+        let moved = chunk.swap_remove_row(location.row);
+        self.len -= 1;
+        moved
+    }
 }
 
 #[cfg(test)]

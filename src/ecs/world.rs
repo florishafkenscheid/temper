@@ -60,6 +60,22 @@ impl World {
         entity
     }
 
+    pub fn despawn(&mut self, entity: Entity) -> bool {
+        if !self.entities.is_alive(entity) {
+            return false;
+        }
+
+        let Some(location) = self.locations.remove(&entity) else {
+            return self.entities.despawn(entity);
+        };
+
+        if let Some(moved_entity) = self.table_storage.remove(location) {
+            self.locations.insert(moved_entity, location);
+        }
+
+        self.entities.despawn(entity)
+    }
+
     pub fn is_alive(&self, entity: Entity) -> bool {
         self.entities.is_alive(entity)
     }
@@ -186,5 +202,57 @@ mod tests {
 
         assert!(world.is_alive(entity));
         assert_eq!(world.archetype_count(), 1);
+    }
+
+    #[test]
+    fn despawn_removes_alive_entity() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        assert!(world.despawn(entity));
+        assert!(!world.is_alive(entity));
+        assert_eq!(world.entity_count(), 0);
+        assert_eq!(world.table_entity_count(), 0);
+    }
+
+    #[test]
+    fn despawn_rejects_stale_entity() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+        assert!(world.despawn(entity));
+
+        assert!(!world.despawn(entity));
+    }
+
+    #[test]
+    fn despawn_repairs_moved_entity_location() {
+        let mut world = World::new();
+
+        let first = world.spawn((Position(10), Velocity(1)));
+        let second = world.spawn((Position(20), Velocity(2)));
+
+        assert!(world.despawn(first));
+        assert!(world.is_alive(second));
+
+        let second_location = world
+            .locations
+            .get(&second)
+            .expect("moved entity should still have a tabe location");
+
+        assert_eq!(second_location.row.chunk, 0);
+        assert_eq!(second_location.row.row, 0);
+
+        assert!(world.despawn(second));
+        assert_eq!(world.entity_count(), 0);
+        assert_eq!(world.table_entity_count(), 0);
+    }
+
+    #[test]
+    fn despawn_unknown_entity_returns_false() {
+        let mut world = World::new();
+
+        assert!(!world.despawn(Entity::new(123, 0)));
     }
 }

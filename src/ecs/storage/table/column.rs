@@ -36,4 +36,8 @@ impl ComponentColumn {
     pub(crate) fn get<T: Component>(&self, row: usize) -> Option<&T> {
         self.values.get(row)?.downcast_ref()
     }
+
+    pub(crate) fn swap_remove(&mut self, row: usize) -> Box<StoredComponent> {
+        self.values.swap_remove(row)
+    }
 }

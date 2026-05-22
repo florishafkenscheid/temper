@@ -49,6 +49,15 @@ impl TableStorage {
         TableEntityLocation { archetype, row }
     }
 
+    pub(crate) fn remove(&mut self, location: TableEntityLocation) -> Option<Entity> {
+        let archetype = self
+            .archetypes
+            .get_mut(location.archetype)
+            .expect("table entity location should reference an existing archetype");
+
+        archetype.remove_row(location.row)
+    }
+
     pub(crate) fn archetype_count(&self) -> usize {
         self.archetypes.len()
     }

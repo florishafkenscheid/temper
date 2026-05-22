@@ -69,4 +69,61 @@ impl Chunk {
 
         self.len() - 1
     }
+
+    pub(crate) fn swap_remove_row(&mut self, row: usize) -> Option<Entity> {
+        let last_row = self.len().checked_sub(1)?;
+
+        self.entities.swap_remove(row);
+
+        for column in &mut self.columns {
+            column.swap_remove(row);
+        }
+
+        if row < last_row {
+            Some(self.entities[row])
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq)]
+    struct Position(i32);
+
+    #[derive(Debug, PartialEq)]
+    struct Velocity(i32);
+
+    #[test]
+    fn swap_remove_row_returns_moved_entity() {
+        let position_id = ComponentId::of::<Position>();
+        let velocity_id = ComponentId::of::<Velocity>();
+
+        let mut chunk = Chunk::new(&[position_id, velocity_id], 4);
+
+        let first = Entity::new(0, 0);
+        let second = Entity::new(1, 0);
+
+        chunk.push_row(
+            first,
+            vec![
+                (position_id, Box::new(Position(10))),
+                (velocity_id, Box::new(Velocity(1))),
+            ],
+        );
+
+        chunk.push_row(
+            second,
+            vec![
+                (position_id, Box::new(Position(20))),
+                (velocity_id, Box::new(Velocity(2))),
+            ],
+        );
+
+        assert_eq!(chunk.swap_remove_row(0), Some(second));
+        assert_eq!(chunk.len(), 1);
+    }
 }

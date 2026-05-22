@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ecs::{
+    bundle::Bundle,
     component::ComponentRegistry,
     entity::{Entity, EntityAllocator},
     storage::table::{TableComponentKey, TableComponentValue, TableEntityLocation, TableStorage},
@@ -30,6 +31,10 @@ impl World {
             table_storage: TableStorage::new(DEFAULT_CHUNK_CAPACITY),
             locations: HashMap::new(),
         }
+    }
+
+    pub fn spawn<B: Bundle>(&mut self, bundle: B) -> Entity {
+        self.spawn_table(bundle.into_bundle().into_table_components())
     }
 
     pub(crate) fn spawn_table(&mut self, components: Vec<TableComponentValue>) -> Entity {
@@ -147,6 +152,39 @@ mod tests {
             TableComponentValue::new(Position(20)),
         ]);
 
+        assert_eq!(world.archetype_count(), 1);
+    }
+
+    #[test]
+    fn spawn_accepts_typed_component_bundle() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        assert!(world.is_alive(entity));
+        assert_eq!(world.entity_count(), 1);
+        assert_eq!(world.table_entity_count(), 1);
+        assert_eq!(world.archetype_count(), 1);
+    }
+
+    #[test]
+    fn typed_spawn_reuses_archetype_for_same_bundle_types() {
+        let mut world = World::new();
+
+        world.spawn((Position(10), Velocity(1)));
+        world.spawn((Position(20), Velocity(2)));
+
+        assert_eq!(world.archetype_count(), 1);
+        assert_eq!(world.table_entity_count(), 2);
+    }
+
+    #[test]
+    fn typed_spawn_supports_single_component_tuple() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+
+        assert!(world.is_alive(entity));
         assert_eq!(world.archetype_count(), 1);
     }
 }

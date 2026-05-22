@@ -1,4 +1,4 @@
-use crate::ecs::{entity::Entity, storage::table::TableComponentKey};
+use crate::ecs::{component::ComponentId, entity::Entity, storage::table::TableComponentKey};
 
 use super::{Archetype, TableComponentValue, TableRowLocation};
 
@@ -6,6 +6,12 @@ use super::{Archetype, TableComponentValue, TableRowLocation};
 pub(crate) struct TableEntityLocation {
     pub(crate) archetype: usize,
     pub(crate) row: TableRowLocation,
+}
+
+pub(crate) struct TableComponentRemoval {
+    pub(crate) removed_entity: Entity,
+    pub(crate) new_location: Option<TableEntityLocation>,
+    pub(crate) moved_entity: Option<Entity>,
 }
 
 #[derive(Default)]
@@ -56,6 +62,41 @@ impl TableStorage {
             .expect("table entity location should reference an existing archetype");
 
         archetype.remove_row(location.row)
+    }
+
+    pub(crate) fn remove_component(
+        &mut self,
+        location: TableEntityLocation,
+        component_id: ComponentId,
+    ) -> Option<TableComponentRemoval> {
+        let source = self.archetypes.get(location.archetype)?;
+
+        if !source.contains_component(component_id) {
+            return None;
+        }
+
+        let destination_keys = source.component_keys_without(component_id);
+
+        let removed_row = self.archetypes[location.archetype].take_row(location.row);
+
+        let remaining_components = removed_row
+            .components
+            .into_iter()
+            .filter(|(id, _)| *id != component_id)
+            .map(|(id, value)| TableComponentValue::from_erased(id, value))
+            .collect::<Vec<_>>();
+
+        let new_location = if destination_keys.is_empty() {
+            None
+        } else {
+            Some(self.insert(removed_row.entity, remaining_components, destination_keys))
+        };
+
+        Some(TableComponentRemoval {
+            removed_entity: removed_row.entity,
+            new_location,
+            moved_entity: removed_row.moved_entity,
+        })
     }
 
     pub(crate) fn archetype_count(&self) -> usize {

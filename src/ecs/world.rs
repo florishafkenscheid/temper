@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::ecs::{
     bundle::Bundle,
-    component::ComponentRegistry,
+    component::{Component, ComponentId, ComponentRegistry},
     entity::{Entity, EntityAllocator},
     storage::table::{TableComponentKey, TableComponentValue, TableEntityLocation, TableStorage},
 };
@@ -76,6 +76,38 @@ impl World {
         self.entities.despawn(entity)
     }
 
+    pub fn remove_component<T: Component>(&mut self, entity: Entity) -> bool {
+        if !self.entities.is_alive(entity) {
+            return false;
+        }
+
+        let Some(location) = self.locations.get(&entity).copied() else {
+            return false;
+        };
+
+        let Some(removal) = self
+            .table_storage
+            .remove_component(location, ComponentId::of::<T>())
+        else {
+            return false;
+        };
+
+        if let Some(moved_entity) = removal.moved_entity {
+            self.locations.insert(moved_entity, location);
+        }
+
+        match removal.new_location {
+            Some(new_location) => {
+                self.locations.insert(removal.removed_entity, new_location);
+            }
+            None => {
+                self.locations.remove(&removal.removed_entity);
+            }
+        }
+
+        true
+    }
+
     pub fn is_alive(&self, entity: Entity) -> bool {
         self.entities.is_alive(entity)
     }
@@ -106,6 +138,9 @@ mod tests {
 
     #[derive(Debug, PartialEq)]
     struct Velocity(i32);
+
+    #[derive(Debug, PartialEq)]
+    struct Health(i32);
 
     #[test]
     fn spawn_table_creates_alive_entity() {
@@ -254,5 +289,76 @@ mod tests {
         let mut world = World::new();
 
         assert!(!world.despawn(Entity::new(123, 0)));
+    }
+
+    #[test]
+    fn remove_component_moves_entity_to_smaller_archetype() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        assert!(world.remove_component::<Velocity>(entity));
+        assert!(world.is_alive(entity));
+        assert_eq!(world.entity_count(), 1);
+        assert_eq!(world.table_entity_count(), 1);
+        assert_eq!(world.archetype_count(), 2);
+    }
+
+    #[test]
+    fn remove_component_rejects_missing_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+
+        assert!(!world.remove_component::<Velocity>(entity));
+        assert!(world.is_alive(entity));
+        assert_eq!(world.entity_count(), 1);
+        assert_eq!(world.table_entity_count(), 1);
+    }
+
+    #[test]
+    fn remove_component_rejects_dead_entity() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+        assert!(world.despawn(entity));
+
+        assert!(!world.remove_component::<Velocity>(entity));
+    }
+
+    #[test]
+    fn remove_last_table_component_keeps_entity_alive_without_table_location() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+
+        assert!(world.remove_component::<Position>(entity));
+        assert!(world.is_alive(entity));
+        assert_eq!(world.entity_count(), 1);
+        assert_eq!(world.table_entity_count(), 0);
+        assert!(!world.locations.contains_key(&entity));
+    }
+
+    #[test]
+    fn remove_component_repairs_swap_moved_entity_location() {
+        let mut world = World::new();
+
+        let first = world.spawn((Position(10), Velocity(1), Health(100)));
+        let second = world.spawn((Position(20), Velocity(2), Health(90)));
+
+        assert!(world.remove_component::<Velocity>(first));
+
+        let second_location = world
+            .locations
+            .get(&second)
+            .expect("swap-moved entity should still have a table location");
+
+        assert_eq!(second_location.row.chunk, 0);
+        assert_eq!(second_location.row.row, 0);
+
+        assert!(world.is_alive(first));
+        assert!(world.is_alive(second));
+        assert_eq!(world.entity_count(), 2);
+        assert_eq!(world.table_entity_count(), 2);
     }
 }

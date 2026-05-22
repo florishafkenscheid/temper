@@ -5,6 +5,12 @@ use crate::ecs::{
 
 use super::{ComponentColumn, StoredComponent};
 
+pub(crate) struct RemovedChunkRow {
+    pub(crate) entity: Entity,
+    pub(crate) components: Vec<(ComponentId, Box<StoredComponent>)>,
+    pub(crate) moved_entity: Option<Entity>,
+}
+
 pub(crate) struct Chunk {
     capacity: usize,
     entities: Vec<Entity>,
@@ -71,19 +77,30 @@ impl Chunk {
     }
 
     pub(crate) fn swap_remove_row(&mut self, row: usize) -> Option<Entity> {
+        self.take_row(row).and_then(|row| row.moved_entity)
+    }
+
+    pub(crate) fn take_row(&mut self, row: usize) -> Option<RemovedChunkRow> {
         let last_row = self.len().checked_sub(1)?;
+        let entity = self.entities.swap_remove(row);
 
-        self.entities.swap_remove(row);
+        let components = self
+            .columns
+            .iter_mut()
+            .map(|column| (column.component_id(), column.swap_remove(row)))
+            .collect();
 
-        for column in &mut self.columns {
-            column.swap_remove(row);
-        }
-
-        if row < last_row {
+        let moved_entity = if row < last_row {
             Some(self.entities[row])
         } else {
             None
-        }
+        };
+
+        Some(RemovedChunkRow {
+            entity,
+            components,
+            moved_entity,
+        })
     }
 }
 

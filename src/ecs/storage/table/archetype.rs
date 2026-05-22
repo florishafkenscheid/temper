@@ -1,7 +1,7 @@
 use crate::ecs::{
     component::{Component, ComponentId},
     entity::Entity,
-    storage::table::TableComponentKey,
+    storage::table::{TableComponentKey, chunk::RemovedChunkRow},
 };
 
 use super::{Chunk, StoredComponent, TableRowLocation};
@@ -62,6 +62,23 @@ impl Archetype {
             .collect()
     }
 
+    pub(crate) fn contains_component(&self, component_id: ComponentId) -> bool {
+        self.components
+            .iter()
+            .any(|component| component.id() == component_id)
+    }
+
+    pub(crate) fn component_keys_without(
+        &self,
+        component_id: ComponentId,
+    ) -> Vec<TableComponentKey> {
+        self.components
+            .iter()
+            .copied()
+            .filter(|component| component.id() != component_id)
+            .collect()
+    }
+
     pub(crate) fn push_row(
         &mut self,
         entity: Entity,
@@ -80,14 +97,21 @@ impl Archetype {
     }
 
     pub(crate) fn remove_row(&mut self, location: TableRowLocation) -> Option<Entity> {
+        self.take_row(location).moved_entity
+    }
+
+    pub(crate) fn take_row(&mut self, location: TableRowLocation) -> RemovedChunkRow {
         let chunk = self
             .chunks
             .get_mut(location.chunk)
             .expect("table row location should reference an existing chunk");
 
-        let moved = chunk.swap_remove_row(location.row);
+        let row = chunk
+            .take_row(location.row)
+            .expect("table row location should reference an existing row");
+
         self.len -= 1;
-        moved
+        row
     }
 }
 

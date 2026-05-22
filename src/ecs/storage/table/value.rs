@@ -20,6 +20,14 @@ impl TableComponentValue {
         }
     }
 
+    pub(crate) fn from_erased(id: ComponentId, value: Box<StoredComponent>) -> Self {
+        Self {
+            id,
+            name: "<erased>",
+            value,
+        }
+    }
+
     pub(crate) fn id(&self) -> ComponentId {
         self.id
     }

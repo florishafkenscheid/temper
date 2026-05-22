@@ -6,7 +6,7 @@ mod storage;
 mod value;
 
 pub(crate) use archetype::Archetype;
-pub(crate) use chunk::Chunk;
+pub(crate) use chunk::{Chunk, RemovedChunkRow};
 pub(crate) use column::{ComponentColumn, StoredComponent};
 pub(crate) use location::TableRowLocation;
 pub(crate) use storage::{TableEntityLocation, TableStorage};

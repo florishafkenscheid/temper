@@ -33,6 +33,16 @@ impl World {
         }
     }
 
+    pub fn get_component<T: Component>(&self, entity: Entity) -> Option<&T> {
+        if !self.entities.is_alive(entity) {
+            return None;
+        }
+
+        let location = self.locations.get(&entity).copied()?;
+
+        self.table_storage.get(location, ComponentId::of::<T>())
+    }
+
     pub fn spawn<B: Bundle>(&mut self, bundle: B) -> Entity {
         self.spawn_table(bundle.into_bundle().into_table_components())
     }
@@ -274,7 +284,7 @@ mod tests {
         let second_location = world
             .locations
             .get(&second)
-            .expect("moved entity should still have a tabe location");
+            .expect("moved entity should still have a table location");
 
         assert_eq!(second_location.row.chunk, 0);
         assert_eq!(second_location.row.row, 0);
@@ -360,5 +370,59 @@ mod tests {
         assert!(world.is_alive(second));
         assert_eq!(world.entity_count(), 2);
         assert_eq!(world.table_entity_count(), 2);
+    }
+
+    #[test]
+    fn get_component_returns_spawned_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        assert_eq!(world.get_component::<Position>(entity), Some(&Position(10)));
+        assert_eq!(world.get_component::<Velocity>(entity), Some(&Velocity(1)));
+    }
+
+    #[test]
+    fn get_component_returns_none_for_missing_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+
+        assert_eq!(world.get_component::<Velocity>(entity), None);
+    }
+
+    #[test]
+    fn get_component_returns_none_for_dead_entity() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+        assert!(world.despawn(entity));
+
+        assert_eq!(world.get_component::<Position>(entity), None);
+    }
+
+    #[test]
+    fn get_component_reflects_component_removal() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        assert!(world.remove_component::<Velocity>(entity));
+
+        assert_eq!(world.get_component::<Position>(entity), Some(&Position(10)));
+        assert_eq!(world.get_component::<Velocity>(entity), None);
+    }
+
+    #[test]
+    fn get_component_survives_swap_moved_location_repair() {
+        let mut world = World::new();
+
+        let first = world.spawn((Position(10), Velocity(1)));
+        let second = world.spawn((Position(20), Velocity(2)));
+
+        assert!(world.despawn(first));
+
+        assert_eq!(world.get_component::<Position>(second), Some(&Position(20)));
+        assert_eq!(world.get_component::<Velocity>(second), Some(&Velocity(2)));
     }
 }

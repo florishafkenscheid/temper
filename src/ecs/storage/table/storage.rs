@@ -1,4 +1,8 @@
-use crate::ecs::{component::ComponentId, entity::Entity, storage::table::TableComponentKey};
+use crate::ecs::{
+    component::{Component, ComponentId},
+    entity::Entity,
+    storage::table::TableComponentKey,
+};
 
 use super::{Archetype, TableComponentValue, TableRowLocation};
 
@@ -31,6 +35,16 @@ impl TableStorage {
             archetypes: Vec::new(),
             chunk_capacity,
         }
+    }
+
+    pub(crate) fn get<T: Component>(
+        &self,
+        location: TableEntityLocation,
+        component_id: ComponentId,
+    ) -> Option<&T> {
+        self.archetypes
+            .get(location.archetype)?
+            .get(component_id, location.row)
     }
 
     pub(crate) fn insert(

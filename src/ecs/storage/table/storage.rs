@@ -47,6 +47,16 @@ impl TableStorage {
             .get(component_id, location.row)
     }
 
+    pub(crate) fn get_mut<T: Component>(
+        &mut self,
+        location: TableEntityLocation,
+        component_id: ComponentId,
+    ) -> Option<&mut T> {
+        self.archetypes
+            .get_mut(location.archetype)?
+            .get_mut(component_id, location.row)
+    }
+
     pub(crate) fn insert(
         &mut self,
         entity: Entity,

@@ -43,6 +43,16 @@ impl World {
         self.table_storage.get(location, ComponentId::of::<T>())
     }
 
+    pub fn get_component_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+        if !self.entities.is_alive(entity) {
+            return None;
+        }
+
+        let location = self.locations.get(&entity).copied()?;
+
+        self.table_storage.get_mut(location, ComponentId::of::<T>())
+    }
+
     pub fn spawn<B: Bundle>(&mut self, bundle: B) -> Entity {
         self.spawn_table(bundle.into_bundle().into_table_components())
     }
@@ -424,5 +434,58 @@ mod tests {
 
         assert_eq!(world.get_component::<Position>(second), Some(&Position(20)));
         assert_eq!(world.get_component::<Velocity>(second), Some(&Velocity(2)));
+    }
+
+    #[test]
+    fn get_component_mut_updates_component_value() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        let position = world
+            .get_component_mut::<Position>(entity)
+            .expect("entity should have Position");
+
+        position.0 += 5;
+
+        assert_eq!(world.get_component::<Position>(entity), Some(&Position(15)));
+    }
+
+    #[test]
+    fn get_component_mut_returns_none_for_missing_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+
+        assert!(world.get_component_mut::<Velocity>(entity).is_none());
+    }
+
+    #[test]
+    fn get_component_mut_returns_none_for_dead_entity() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+        assert!(world.despawn(entity));
+
+        assert!(world.get_component_mut::<Position>(entity).is_none());
+    }
+
+    #[test]
+    fn get_component_mut_reflects_component_removal() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        assert!(world.remove_component::<Velocity>(entity));
+
+        assert!(world.get_component_mut::<Velocity>(entity).is_none());
+
+        let position = world
+            .get_component_mut::<Position>(entity)
+            .expect("remaining component should still be mutable");
+
+        position.0 = 20;
+
+        assert_eq!(world.get_component::<Position>(entity), Some(&Position(20)));
     }
 }

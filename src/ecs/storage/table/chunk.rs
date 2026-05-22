@@ -40,6 +40,18 @@ impl Chunk {
     }
 
     #[must_use]
+    pub(crate) fn get_mut<T: Component>(
+        &mut self,
+        component_id: ComponentId,
+        row: usize,
+    ) -> Option<&mut T> {
+        self.columns
+            .iter_mut()
+            .find(|column| column.component_id() == component_id)?
+            .get_mut(row)
+    }
+
+    #[must_use]
     pub(crate) fn len(&self) -> usize {
         self.entities.len()
     }

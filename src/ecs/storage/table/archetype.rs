@@ -38,6 +38,17 @@ impl Archetype {
     }
 
     #[must_use]
+    pub(crate) fn get_mut<T: Component>(
+        &mut self,
+        component_id: ComponentId,
+        location: TableRowLocation,
+    ) -> Option<&mut T> {
+        self.chunks
+            .get_mut(location.chunk)?
+            .get_mut(component_id, location.row)
+    }
+
+    #[must_use]
     pub(crate) fn len(&self) -> usize {
         self.len
     }

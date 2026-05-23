@@ -51,6 +51,14 @@ impl Chunk {
             .get_mut(row)
     }
 
+    pub(crate) fn entity(&self, row: usize) -> Option<Entity> {
+        self.entities.get(row).copied()
+    }
+
+    pub(crate) fn row_count(&self) -> usize {
+        self.len()
+    }
+
     #[must_use]
     pub(crate) fn len(&self) -> usize {
         self.entities.len()

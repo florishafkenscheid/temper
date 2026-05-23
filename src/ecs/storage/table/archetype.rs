@@ -58,6 +58,11 @@ impl Archetype {
     }
 
     #[must_use]
+    pub(crate) fn chunks(&self) -> &[Chunk] {
+        &self.chunks
+    }
+
+    #[must_use]
     pub(crate) fn chunk_count(&self) -> usize {
         self.chunks.len()
     }
@@ -88,6 +93,10 @@ impl Archetype {
             .copied()
             .filter(|component| component.id() != component_id)
             .collect()
+    }
+
+    pub(crate) fn has_component(&self, component_id: ComponentId) -> bool {
+        self.contains_component(component_id)
     }
 
     pub(crate) fn push_row(

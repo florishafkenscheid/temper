@@ -1,6 +1,7 @@
 use crate::ecs::{
     component::{Component, ComponentId},
     entity::Entity,
+    query::{QueryItem, QueryItem2},
     storage::table::TableComponentKey,
 };
 
@@ -35,6 +36,71 @@ impl TableStorage {
             archetypes: Vec::new(),
             chunk_capacity,
         }
+    }
+
+    pub(crate) fn query<T: Component>(&self, component_id: ComponentId) -> Vec<QueryItem<'_, T>> {
+        let mut results = Vec::new();
+
+        for archetype in &self.archetypes {
+            if !archetype.has_component(component_id) {
+                continue;
+            }
+
+            for chunk in archetype.chunks() {
+                for row in 0..chunk.row_count() {
+                    let Some(entity) = chunk.entity(row) else {
+                        continue;
+                    };
+
+                    let Some(component) = chunk.get::<T>(component_id, row) else {
+                        continue;
+                    };
+
+                    results.push(QueryItem { entity, component });
+                }
+            }
+        }
+
+        results
+    }
+
+    // TODO refactor
+    pub(crate) fn query2<A: Component, B: Component>(
+        &self,
+        first_id: ComponentId,
+        second_id: ComponentId,
+    ) -> Vec<QueryItem2<'_, A, B>> {
+        let mut results = Vec::new();
+
+        for archetype in &self.archetypes {
+            if !archetype.has_component(first_id) || !archetype.has_component(second_id) {
+                continue;
+            }
+
+            for chunk in archetype.chunks() {
+                for row in 0..chunk.row_count() {
+                    let Some(entity) = chunk.entity(row) else {
+                        continue;
+                    };
+
+                    let Some(first) = chunk.get::<A>(first_id, row) else {
+                        continue;
+                    };
+
+                    let Some(second) = chunk.get::<B>(second_id, row) else {
+                        continue;
+                    };
+
+                    results.push(QueryItem2 {
+                        entity,
+                        first,
+                        second,
+                    });
+                }
+            }
+        }
+
+        results
     }
 
     pub(crate) fn get<T: Component>(

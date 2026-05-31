@@ -120,6 +120,18 @@ impl Chunk {
         self.len() - 1
     }
 
+    pub(crate) fn replace(
+        &mut self,
+        component_id: ComponentId,
+        row: usize,
+        value: Box<StoredComponent>,
+    ) -> Option<Box<StoredComponent>> {
+        self.columns
+            .iter_mut()
+            .find(|column| column.component_id() == component_id)?
+            .replace(row, value)
+    }
+
     pub(crate) fn swap_remove_row(&mut self, row: usize) -> Option<Entity> {
         self.take_row(row).and_then(|row| row.moved_entity)
     }

@@ -62,6 +62,10 @@ impl Archetype {
         results
     }
 
+    pub(crate) fn entity(&self, location: TableRowLocation) -> Option<Entity> {
+        self.chunks.get(location.chunk)?.entity(location.row)
+    }
+
     #[must_use]
     pub(crate) fn len(&self) -> usize {
         self.len
@@ -98,6 +102,23 @@ impl Archetype {
             .any(|component| component.id() == component_id)
     }
 
+    pub(crate) fn component_keys_with(
+        &self,
+        component: TableComponentKey,
+    ) -> Vec<TableComponentKey> {
+        let mut components = self.components.clone();
+
+        if !components
+            .iter()
+            .any(|existing| existing.id() == component.id())
+        {
+            components.push(component);
+        }
+
+        components.sort_by_key(|component| component.order());
+        components
+    }
+
     pub(crate) fn component_keys_without(
         &self,
         component_id: ComponentId,
@@ -128,6 +149,17 @@ impl Archetype {
         self.len += 1;
 
         TableRowLocation { chunk, row }
+    }
+
+    pub(crate) fn replace(
+        &mut self,
+        component_id: ComponentId,
+        location: TableRowLocation,
+        value: Box<StoredComponent>,
+    ) -> Option<Box<StoredComponent>> {
+        self.chunks
+            .get_mut(location.chunk)?
+            .replace(component_id, location.row, value)
     }
 
     pub(crate) fn remove_row(&mut self, location: TableRowLocation) -> Option<Entity> {

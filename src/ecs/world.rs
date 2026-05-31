@@ -117,6 +117,41 @@ impl World {
         self.entities.despawn(entity)
     }
 
+    pub fn insert_component<T: Component>(&mut self, entity: Entity, component: T) -> bool {
+        if !self.entities.is_alive(entity) {
+            return false;
+        }
+
+        let value = TableComponentValue::new(component);
+        let id = self.components.register_table_id(value.id(), value.name());
+
+        let order = self
+            .components
+            .order(id)
+            .expect("registered component should have an order");
+
+        let key = TableComponentKey::new(id, order);
+
+        let Some(location) = self.locations.get(&entity).copied() else {
+            let location = self.table_storage.insert(entity, vec![value], vec![key]);
+            self.locations.insert(entity, location);
+            return true;
+        };
+
+        let Some(insertion) = self.table_storage.insert_component(location, value, key) else {
+            return false;
+        };
+
+        if let Some(moved_entity) = insertion.moved_entity {
+            self.locations.insert(moved_entity, location);
+        }
+
+        self.locations
+            .insert(insertion.entity, insertion.new_location);
+
+        true
+    }
+
     pub fn remove_component<T: Component>(&mut self, entity: Entity) -> bool {
         if !self.entities.is_alive(entity) {
             return false;
@@ -780,5 +815,66 @@ mod tests {
 
         assert!(!world.is_alive(entity));
         assert_eq!(world.entity_count(), 0);
+    }
+
+    #[test]
+    fn insert_component_moves_entity_to_larger_archetype() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+
+        assert!(world.insert_component(entity, Velocity(2)));
+
+        assert_eq!(world.get_component::<Position>(entity), Some(&Position(10)));
+        assert_eq!(world.get_component::<Velocity>(entity), Some(&Velocity(2)));
+        assert_eq!(world.archetype_count(), 2);
+    }
+
+    #[test]
+    fn insert_component_replaces_existing_value() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        assert!(world.insert_component(entity, Velocity(5)));
+
+        assert_eq!(world.get_component::<Velocity>(entity), Some(&Velocity(5)));
+        assert_eq!(world.archetype_count(), 1);
+    }
+
+    #[test]
+    fn insert_component_rejects_dead_entity() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+        assert!(world.despawn(entity));
+
+        assert!(!world.insert_component(entity, Velocity(2)));
+    }
+
+    #[test]
+    fn insert_component_adds_first_table_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+        assert!(world.remove_component::<Position>(entity));
+
+        assert!(world.insert_component(entity, Velocity(2)));
+
+        assert_eq!(world.get_component::<Velocity>(entity), Some(&Velocity(2)));
+        assert_eq!(world.table_entity_count(), 1);
+    }
+
+    #[test]
+    fn insert_component_repairs_swap_moved_entity_location() {
+        let mut world = World::new();
+
+        let first = world.spawn((Position(10),));
+        let second = world.spawn((Position(20),));
+
+        assert!(world.insert_component(first, Velocity(1)));
+
+        assert_eq!(world.get_component::<Position>(second), Some(&Position(20)));
+        assert_eq!(world.get_component::<Velocity>(second), None);
     }
 }

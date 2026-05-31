@@ -50,6 +50,15 @@ impl ComponentColumn {
         })
     }
 
+    pub(crate) fn replace(
+        &mut self,
+        row: usize,
+        value: Box<StoredComponent>,
+    ) -> Option<Box<StoredComponent>> {
+        let current = self.values.get_mut(row)?;
+        Some(std::mem::replace(current, value))
+    }
+
     pub(crate) fn swap_remove(&mut self, row: usize) -> Box<StoredComponent> {
         self.values.swap_remove(row)
     }

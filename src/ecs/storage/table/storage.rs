@@ -19,6 +19,12 @@ pub(crate) struct TableComponentRemoval {
     pub(crate) moved_entity: Option<Entity>,
 }
 
+pub(crate) struct TableComponentInsertion {
+    pub(crate) entity: Entity,
+    pub(crate) new_location: TableEntityLocation,
+    pub(crate) moved_entity: Option<Entity>,
+}
+
 #[derive(Default)]
 pub(crate) struct TableStorage {
     archetypes: Vec<Archetype>,
@@ -160,6 +166,53 @@ impl TableStorage {
         );
 
         TableEntityLocation { archetype, row }
+    }
+
+    pub(crate) fn insert_component(
+        &mut self,
+        location: TableEntityLocation,
+        component: TableComponentValue,
+        key: TableComponentKey,
+    ) -> Option<TableComponentInsertion> {
+        let component_id = component.id();
+
+        if self
+            .archetypes
+            .get(location.archetype)?
+            .contains_component(component_id)
+        {
+            self.archetypes[location.archetype].replace(
+                component_id,
+                location.row,
+                component.into_parts().1,
+            )?;
+
+            return Some(TableComponentInsertion {
+                entity: self.archetypes[location.archetype].entity(location.row)?,
+                new_location: location,
+                moved_entity: None,
+            });
+        }
+
+        let destination_keys = self.archetypes[location.archetype].component_keys_with(key);
+
+        let removed_row = self.archetypes[location.archetype].take_row(location.row);
+
+        let mut components = removed_row
+            .components
+            .into_iter()
+            .map(|(id, value)| TableComponentValue::from_erased(id, value))
+            .collect::<Vec<_>>();
+
+        components.push(component);
+
+        let new_location = self.insert(removed_row.entity, components, destination_keys);
+
+        Some(TableComponentInsertion {
+            entity: removed_row.entity,
+            new_location,
+            moved_entity: removed_row.moved_entity,
+        })
     }
 
     pub(crate) fn remove(&mut self, location: TableEntityLocation) -> Option<Entity> {

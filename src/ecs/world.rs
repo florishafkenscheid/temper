@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, mem};
 
 use crate::ecs::{
     bundle::Bundle,
+    command::Commands,
     component::{Component, ComponentId, ComponentRegistry},
     entity::{Entity, EntityAllocator},
     query::{QueryItem, QueryItem2, QueryItemMut},
@@ -17,6 +18,7 @@ pub struct World {
     table_storage: TableStorage,
     locations: HashMap<Entity, TableEntityLocation>,
     resources: Resources,
+    commands: Commands,
 }
 
 impl Default for World {
@@ -34,6 +36,7 @@ impl World {
             table_storage: TableStorage::new(DEFAULT_CHUNK_CAPACITY),
             locations: HashMap::new(),
             resources: Resources::new(),
+            commands: Commands::new(),
         }
     }
 
@@ -188,6 +191,15 @@ impl World {
     #[must_use]
     pub fn resource_count(&self) -> usize {
         self.resources.len()
+    }
+
+    pub fn commands(&mut self) -> &mut Commands {
+        &mut self.commands
+    }
+
+    pub(crate) fn apply_commands(&mut self) {
+        let commands = mem::take(&mut self.commands);
+        commands.apply(self);
     }
 }
 
@@ -677,5 +689,52 @@ mod tests {
 
         assert_eq!(world.get_resource::<Tick>(), Some(&Tick(11)));
         assert_eq!(world.resource_count(), 1);
+    }
+
+    #[test]
+    fn apply_commands_spawns_queued_entity() {
+        let mut world = World::new();
+
+        world.commands().spawn((Position(10), Velocity(1)));
+
+        assert_eq!(world.entity_count(), 0);
+        assert_eq!(world.commands().pending_count(), 1);
+
+        world.apply_commands();
+
+        assert_eq!(world.entity_count(), 1);
+        assert_eq!(world.query2::<Position, Velocity>().len(), 1);
+        assert!(world.commands().is_empty());
+    }
+
+    #[test]
+    fn apply_commands_despawns_queued_entity() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+        world.commands().despawn(entity);
+
+        assert!(world.is_alive(entity));
+
+        world.apply_commands();
+
+        assert!(!world.is_alive(entity));
+        assert_eq!(world.entity_count(), 0);
+    }
+
+    #[test]
+    fn commands_apply_in_queue_order() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+
+        world.commands().despawn(entity);
+        world.commands().spawn((Position(20),));
+
+        world.apply_commands();
+
+        assert!(!world.is_alive(entity));
+        assert_eq!(world.entity_count(), 1);
+        assert_eq!(world.query::<Position>()[0].component, &Position(20));
     }
 }

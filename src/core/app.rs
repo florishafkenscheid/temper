@@ -76,6 +76,7 @@ impl App {
 
     pub fn run_stage(&mut self, stage: Stage) {
         self.schedule.run_stage(stage, &mut self.world);
+        self.world.apply_commands();
     }
 
     fn run_startup_once(&mut self) {
@@ -306,5 +307,53 @@ mod tests {
         app.run_fixed_ticks(0);
 
         assert_eq!(app.world().get_resource::<Tick>(), Some(&Tick(1)));
+    }
+
+    #[test]
+    fn fixed_update_applies_spawn_commands_at_stage_boundary() {
+        #[derive(Debug, PartialEq)]
+        struct Position(i32);
+
+        let mut app = App::new();
+
+        app.add_system(Stage::FixedUpdate, |world| {
+            world.commands().spawn((Position(10),));
+        });
+
+        app.run_fixed_ticks(1);
+
+        assert_eq!(app.world().entity_count(), 1);
+        assert_eq!(app.world().query::<Position>()[0].component, &Position(10));
+    }
+
+    #[test]
+    fn cleanup_observes_entities_spawned_during_fixed_update() {
+        #[derive(Debug, PartialEq)]
+        struct Position(i32);
+
+        #[derive(Debug, Default, PartialEq)]
+        struct ObservedCount(usize);
+
+        let mut app = App::new();
+
+        app.insert_resource(ObservedCount::default())
+            .add_system(Stage::FixedUpdate, |world| {
+                world.commands().spawn((Position(10),));
+            })
+            .add_system(Stage::Cleanup, |world| {
+                let count = world.query::<Position>().len();
+
+                world
+                    .get_resource_mut::<ObservedCount>()
+                    .expect("ObservedCount should exist")
+                    .0 = count;
+            });
+
+        app.run_fixed_ticks(1);
+
+        assert_eq!(
+            app.world().get_resource::<ObservedCount>(),
+            Some(&ObservedCount(1))
+        );
     }
 }

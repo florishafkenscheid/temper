@@ -1,5 +1,8 @@
 use crate::{
-    core::plugin::Plugin,
+    core::{
+        plugin::Plugin,
+        schedule::{Schedule, Stage},
+    },
     ecs::{resource::Resource, world::World},
 };
 
@@ -10,6 +13,7 @@ use crate::{
 #[derive(Default)]
 pub struct App {
     world: World,
+    schedule: Schedule,
 }
 
 impl App {
@@ -29,19 +33,41 @@ impl App {
     }
 
     #[must_use]
-    pub fn insert_resource<T: Resource>(mut self, resource: T) -> Self {
+    pub fn schedule(&self) -> &Schedule {
+        &self.schedule
+    }
+
+    #[must_use]
+    pub fn schedule_mut(&mut self) -> &mut Schedule {
+        &mut self.schedule
+    }
+
+    pub fn insert_resource<T: Resource>(&mut self, resource: T) -> &mut Self {
         self.world.insert_resource(resource);
         self
     }
 
-    #[must_use]
-    pub fn add_plugin<P: Plugin>(mut self, plugin: P) -> Self {
-        plugin.build(&mut self);
+    pub fn add_plugin<P: Plugin>(&mut self, plugin: P) -> &mut Self {
+        plugin.build(self);
         self
     }
 
-    pub fn run(self) {
-        // Real runtime loop comes later.
+    pub fn add_system<S>(&mut self, stage: Stage, system: S) -> &mut Self
+    where
+        S: FnMut(&mut World) + 'static,
+    {
+        self.schedule.add_system(stage, system);
+        self
+    }
+
+    pub fn run_stage(&mut self, stage: Stage) {
+        self.schedule.run_stage(stage, &mut self.world);
+    }
+
+    pub fn run(&mut self) {
+        self.run_stage(Stage::Startup);
+        self.run_stage(Stage::FixedUpdate);
+        self.run_stage(Stage::Cleanup);
     }
 }
 
@@ -73,14 +99,16 @@ mod tests {
 
     #[test]
     fn insert_resource_configures_world() {
-        let app = App::new().insert_resource(Tick(10));
+        let mut app = App::new();
+        app.insert_resource(Tick(10));
 
         assert_eq!(app.world().get_resource::<Tick>(), Some(&Tick(10)));
     }
 
     #[test]
     fn plugin_configures_app_world() {
-        let app = App::new().add_plugin(TickPlugin { initial_tick: 42 });
+        let mut app = App::new();
+        app.add_plugin(TickPlugin { initial_tick: 42 });
 
         assert_eq!(app.world().get_resource::<Tick>(), Some(&Tick(42)));
     }
@@ -98,9 +126,51 @@ mod tests {
             }
         }
 
-        let app = App::new()
-            .add_plugin(TickPlugin { initial_tick: 10 })
+        let mut app = App::new();
+        app.add_plugin(TickPlugin { initial_tick: 10 })
             .add_plugin(IncrementTickPlugin);
+
+        assert_eq!(app.world().get_resource::<Tick>(), Some(&Tick(11)));
+    }
+
+    #[test]
+    fn app_runs_registered_system_stage() {
+        let mut app = App::new();
+
+        app.insert_resource(Tick(10))
+            .add_system(Stage::FixedUpdate, |world| {
+                world
+                    .get_resource_mut::<Tick>()
+                    .expect("Tick should exist")
+                    .0 += 1;
+            });
+
+        app.run_stage(Stage::FixedUpdate);
+
+        assert_eq!(app.world().get_resource::<Tick>(), Some(&Tick(11)));
+    }
+
+    #[test]
+    fn plugin_registers_system() {
+        struct IncrementTickPlugin;
+
+        impl Plugin for IncrementTickPlugin {
+            fn build(&self, app: &mut App) {
+                app.add_system(Stage::FixedUpdate, |world| {
+                    world
+                        .get_resource_mut::<Tick>()
+                        .expect("Tick should exist")
+                        .0 += 1;
+                });
+            }
+        }
+
+        let mut app = App::new();
+
+        app.insert_resource(Tick(10))
+            .add_plugin(IncrementTickPlugin);
+
+        app.run_stage(Stage::FixedUpdate);
 
         assert_eq!(app.world().get_resource::<Tick>(), Some(&Tick(11)));
     }

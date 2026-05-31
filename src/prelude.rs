@@ -1,4 +1,8 @@
-pub use crate::core::{app::App, plugin::Plugin};
+pub use crate::core::{
+    app::App,
+    plugin::Plugin,
+    schedule::{Schedule, Stage},
+};
 pub use crate::ecs::bundle::Bundle;
 pub use crate::ecs::entity::{Entity, EntityAllocator};
 pub use crate::ecs::query::{QueryItem, QueryItem2, QueryItemMut};

@@ -5,6 +5,7 @@ use crate::ecs::{
     component::{Component, ComponentId, ComponentRegistry},
     entity::{Entity, EntityAllocator},
     query::{QueryItem, QueryItem2, QueryItemMut},
+    resource::{Resource, Resources},
     storage::table::{TableComponentKey, TableComponentValue, TableEntityLocation, TableStorage},
 };
 
@@ -15,6 +16,7 @@ pub struct World {
     components: ComponentRegistry,
     table_storage: TableStorage,
     locations: HashMap<Entity, TableEntityLocation>,
+    resources: Resources,
 }
 
 impl Default for World {
@@ -31,6 +33,7 @@ impl World {
             components: ComponentRegistry::default(),
             table_storage: TableStorage::new(DEFAULT_CHUNK_CAPACITY),
             locations: HashMap::new(),
+            resources: Resources::new(),
         }
     }
 
@@ -161,6 +164,31 @@ impl World {
     pub fn archetype_count(&self) -> usize {
         self.table_storage.archetype_count()
     }
+
+    pub fn insert_resource<T: Resource>(&mut self, resource: T) -> Option<T> {
+        self.resources.insert(resource)
+    }
+
+    pub fn get_resource<T: Resource>(&self) -> Option<&T> {
+        self.resources.get::<T>()
+    }
+
+    pub fn get_resource_mut<T: Resource>(&mut self) -> Option<&mut T> {
+        self.resources.get_mut::<T>()
+    }
+
+    pub fn remove_resource<T: Resource>(&mut self) -> Option<T> {
+        self.resources.remove::<T>()
+    }
+
+    pub fn contains_resource<T: Resource>(&self) -> bool {
+        self.resources.contains::<T>()
+    }
+
+    #[must_use]
+    pub fn resource_count(&self) -> usize {
+        self.resources.len()
+    }
 }
 
 #[cfg(test)]
@@ -176,6 +204,9 @@ mod tests {
 
     #[derive(Debug, PartialEq)]
     struct Health(i32);
+
+    #[derive(Debug, PartialEq)]
+    struct Tick(u64);
 
     #[test]
     fn spawn_table_creates_alive_entity() {
@@ -630,5 +661,21 @@ mod tests {
         }
 
         assert_eq!(world.get_component::<Position>(second), Some(&Position(30)));
+    }
+
+    #[test]
+    fn world_stores_typed_resources() {
+        let mut world = World::new();
+
+        assert_eq!(world.insert_resource(Tick(10)), None);
+        assert_eq!(world.get_resource::<Tick>(), Some(&Tick(10)));
+
+        world
+            .get_resource_mut::<Tick>()
+            .expect("Tick should exist")
+            .0 += 1;
+
+        assert_eq!(world.get_resource::<Tick>(), Some(&Tick(11)));
+        assert_eq!(world.resource_count(), 1);
     }
 }

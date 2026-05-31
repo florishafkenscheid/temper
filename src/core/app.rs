@@ -356,4 +356,43 @@ mod tests {
             Some(&ObservedCount(1))
         );
     }
+
+    #[test]
+    fn fixed_update_applies_component_removal_after_stage() {
+        #[derive(Debug, PartialEq)]
+        struct Position(i32);
+
+        #[derive(Debug, PartialEq)]
+        struct Velocity(i32);
+
+        #[derive(Debug, Default, PartialEq)]
+        struct ObservedDuringSystem(bool);
+
+        let mut app = App::new();
+
+        let entity = app.world_mut().spawn((Position(10), Velocity(1)));
+
+        app.insert_resource(ObservedDuringSystem::default())
+            .add_system(Stage::FixedUpdate, move |world| {
+                world.commands().remove_component::<Velocity>(entity);
+
+                world
+                    .get_resource_mut::<ObservedDuringSystem>()
+                    .expect("ObservedDuringSystem should exist")
+                    .0 = world.get_component::<Velocity>(entity).is_some();
+            });
+
+        app.run_fixed_ticks(1);
+
+        assert_eq!(
+            app.world().get_resource::<ObservedDuringSystem>(),
+            Some(&ObservedDuringSystem(true))
+        );
+
+        assert_eq!(app.world().get_component::<Velocity>(entity), None);
+        assert_eq!(
+            app.world().get_component::<Position>(entity),
+            Some(&Position(10))
+        );
+    }
 }

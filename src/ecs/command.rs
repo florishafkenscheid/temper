@@ -1,4 +1,4 @@
-use crate::ecs::{bundle::Bundle, entity::Entity, world::World};
+use crate::ecs::{bundle::Bundle, component::Component, entity::Entity, world::World};
 
 type DeferredCommand = Box<dyn FnOnce(&mut World)>;
 
@@ -25,6 +25,15 @@ impl Commands {
     pub fn despawn(&mut self, entity: Entity) {
         self.queued.push(Box::new(move |world| {
             world.despawn(entity);
+        }));
+    }
+
+    pub fn remove_component<T>(&mut self, entity: Entity)
+    where
+        T: Component,
+    {
+        self.queued.push(Box::new(move |world| {
+            world.remove_component::<T>(entity);
         }));
     }
 

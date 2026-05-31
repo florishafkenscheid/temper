@@ -737,4 +737,48 @@ mod tests {
         assert_eq!(world.entity_count(), 1);
         assert_eq!(world.query::<Position>()[0].component, &Position(20));
     }
+
+    #[test]
+    fn apply_commands_removes_queued_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        world.commands().remove_component::<Velocity>(entity);
+
+        assert_eq!(world.get_component::<Velocity>(entity), Some(&Velocity(1)));
+
+        world.apply_commands();
+
+        assert_eq!(world.get_component::<Velocity>(entity), None);
+        assert_eq!(world.get_component::<Position>(entity), Some(&Position(10)));
+        assert!(world.is_alive(entity));
+    }
+
+    #[test]
+    fn deferred_component_removal_ignores_missing_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+
+        world.commands().remove_component::<Velocity>(entity);
+        world.apply_commands();
+
+        assert_eq!(world.get_component::<Position>(entity), Some(&Position(10)));
+        assert!(world.is_alive(entity));
+    }
+
+    #[test]
+    fn deferred_component_removal_ignores_dead_entity() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        world.commands().despawn(entity);
+        world.commands().remove_component::<Velocity>(entity);
+        world.apply_commands();
+
+        assert!(!world.is_alive(entity));
+        assert_eq!(world.entity_count(), 0);
+    }
 }

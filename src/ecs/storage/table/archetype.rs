@@ -1,6 +1,7 @@
 use crate::ecs::{
     component::{Component, ComponentId},
     entity::Entity,
+    query::QueryItemMut,
     storage::table::{TableComponentKey, chunk::RemovedChunkRow},
 };
 
@@ -46,6 +47,19 @@ impl Archetype {
         self.chunks
             .get_mut(location.chunk)?
             .get_mut(component_id, location.row)
+    }
+
+    pub(crate) fn query_mut<T: Component>(
+        &mut self,
+        component_id: ComponentId,
+    ) -> Vec<QueryItemMut<'_, T>> {
+        let mut results = Vec::new();
+
+        for chunk in &mut self.chunks {
+            results.extend(chunk.query_mut(component_id));
+        }
+
+        results
     }
 
     #[must_use]

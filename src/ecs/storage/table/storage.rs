@@ -1,7 +1,7 @@
 use crate::ecs::{
     component::{Component, ComponentId},
     entity::Entity,
-    query::{QueryItem, QueryItem2},
+    query::{QueryItem, QueryItem2, QueryItemMut},
     storage::table::TableComponentKey,
 };
 
@@ -98,6 +98,23 @@ impl TableStorage {
                     });
                 }
             }
+        }
+
+        results
+    }
+
+    pub(crate) fn query_mut<T: Component>(
+        &mut self,
+        component_id: ComponentId,
+    ) -> Vec<QueryItemMut<'_, T>> {
+        let mut results = Vec::new();
+
+        for archetype in &mut self.archetypes {
+            if !archetype.has_component(component_id) {
+                continue;
+            }
+
+            results.extend(archetype.query_mut(component_id));
         }
 
         results

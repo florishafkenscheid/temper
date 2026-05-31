@@ -42,6 +42,14 @@ impl ComponentColumn {
         self.values.get_mut(row)?.downcast_mut()
     }
 
+    pub(crate) fn iter_mut<T: Component>(&mut self) -> impl Iterator<Item = &mut T> + '_ {
+        self.values.iter_mut().map(|value| {
+            value
+                .downcast_mut()
+                .expect("component column should contain requested type")
+        })
+    }
+
     pub(crate) fn swap_remove(&mut self, row: usize) -> Box<StoredComponent> {
         self.values.swap_remove(row)
     }

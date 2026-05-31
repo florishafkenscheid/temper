@@ -4,7 +4,7 @@ use crate::ecs::{
     bundle::Bundle,
     component::{Component, ComponentId, ComponentRegistry},
     entity::{Entity, EntityAllocator},
-    query::{QueryItem, QueryItem2},
+    query::{QueryItem, QueryItem2, QueryItemMut},
     storage::table::{TableComponentKey, TableComponentValue, TableEntityLocation, TableStorage},
 };
 
@@ -62,6 +62,10 @@ impl World {
     pub fn query2<A: Component, B: Component>(&self) -> Vec<QueryItem2<'_, A, B>> {
         self.table_storage
             .query2(ComponentId::of::<A>(), ComponentId::of::<B>())
+    }
+
+    pub fn query_mut<T: Component>(&mut self) -> Vec<QueryItemMut<'_, T>> {
+        self.table_storage.query_mut(ComponentId::of::<T>())
     }
 
     pub fn spawn<B: Bundle>(&mut self, bundle: B) -> Entity {
@@ -566,5 +570,65 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].entity, second);
         assert_eq!(results[0].component, &Position(20));
+    }
+
+    #[test]
+    fn query_mut_updates_matching_components() {
+        let mut world = World::new();
+
+        let first = world.spawn((Position(10), Velocity(1)));
+        let second = world.spawn((Position(20), Velocity(2)));
+        world.spawn((Velocity(3),));
+
+        {
+            let mut results = world.query_mut::<Position>();
+
+            assert_eq!(results.len(), 2);
+
+            for item in &mut results {
+                item.component.0 += 5;
+            }
+        }
+
+        assert_eq!(world.get_component::<Position>(first), Some(&Position(15)));
+        assert_eq!(world.get_component::<Position>(second), Some(&Position(25)));
+    }
+
+    #[test]
+    fn query_mut_ignores_removed_components() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        assert!(world.remove_component::<Velocity>(entity));
+
+        assert_eq!(world.query_mut::<Velocity>().len(), 0);
+
+        {
+            let mut positions = world.query_mut::<Position>();
+            assert_eq!(positions.len(), 1);
+            positions[0].component.0 = 42;
+        }
+
+        assert_eq!(world.get_component::<Position>(entity), Some(&Position(42)));
+    }
+
+    #[test]
+    fn query_mut_ignores_despawned_entities() {
+        let mut world = World::new();
+
+        let first = world.spawn((Position(10),));
+        let second = world.spawn((Position(20),));
+
+        assert!(world.despawn(first));
+
+        {
+            let mut results = world.query_mut::<Position>();
+            assert_eq!(results.len(), 1);
+            assert_eq!(results[0].entity, second);
+            results[0].component.0 = 30;
+        }
+
+        assert_eq!(world.get_component::<Position>(second), Some(&Position(30)));
     }
 }

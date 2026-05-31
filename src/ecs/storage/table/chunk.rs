@@ -1,6 +1,7 @@
 use crate::ecs::{
     component::{Component, ComponentId},
     entity::Entity,
+    query::QueryItemMut,
 };
 
 use super::{ComponentColumn, StoredComponent};
@@ -49,6 +50,29 @@ impl Chunk {
             .iter_mut()
             .find(|column| column.component_id() == component_id)?
             .get_mut(row)
+    }
+
+    pub(crate) fn query_mut<T: Component>(
+        &mut self,
+        component_id: ComponentId,
+    ) -> Vec<QueryItemMut<'_, T>> {
+        let Some(column_index) = self
+            .columns
+            .iter()
+            .position(|column| column.component_id() == component_id)
+        else {
+            return Vec::new();
+        };
+
+        let entities = &self.entities;
+        let column = &mut self.columns[column_index];
+
+        entities
+            .iter()
+            .copied()
+            .zip(column.iter_mut::<T>())
+            .map(|(entity, component)| QueryItemMut { entity, component })
+            .collect()
     }
 
     pub(crate) fn entity(&self, row: usize) -> Option<Entity> {

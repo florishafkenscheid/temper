@@ -2,6 +2,7 @@ pub use crate::core::{
     app::App,
     plugin::Plugin,
     schedule::{Schedule, Stage},
+    time::FixedTime,
 };
 pub use crate::ecs::bundle::Bundle;
 pub use crate::ecs::entity::{Entity, EntityAllocator};

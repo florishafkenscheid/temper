@@ -2,6 +2,7 @@ use crate::{
     core::{
         plugin::Plugin,
         schedule::{Schedule, Stage},
+        time::FixedTime,
     },
     ecs::{resource::Resource, world::World},
 };
@@ -10,10 +11,23 @@ use crate::{
 ///
 /// This exists to establish the library boundary before the real app/plugin
 /// runtime is implemented.
-#[derive(Default)]
 pub struct App {
     world: World,
     schedule: Schedule,
+    startup_complete: bool,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        let mut world = World::new();
+        world.insert_resource(FixedTime::default());
+
+        Self {
+            world,
+            schedule: Schedule::new(),
+            startup_complete: false,
+        }
+    }
 }
 
 impl App {
@@ -64,10 +78,32 @@ impl App {
         self.schedule.run_stage(stage, &mut self.world);
     }
 
-    pub fn run(&mut self) {
+    fn run_startup_once(&mut self) {
+        if self.startup_complete {
+            return;
+        }
+
         self.run_stage(Stage::Startup);
-        self.run_stage(Stage::FixedUpdate);
-        self.run_stage(Stage::Cleanup);
+        self.startup_complete = true;
+    }
+
+    pub fn run_fixed_ticks(&mut self, ticks: u64) {
+        self.run_startup_once();
+
+        for _ in 0..ticks {
+            self.run_stage(Stage::FixedUpdate);
+
+            self.world
+                .get_resource_mut::<FixedTime>()
+                .expect("FixedTime should exist")
+                .advance();
+
+            self.run_stage(Stage::Cleanup);
+        }
+    }
+
+    pub fn run(&mut self) {
+        self.run_fixed_ticks(1);
     }
 }
 
@@ -173,5 +209,102 @@ mod tests {
         app.run_stage(Stage::FixedUpdate);
 
         assert_eq!(app.world().get_resource::<Tick>(), Some(&Tick(11)));
+    }
+
+    #[test]
+    fn fixed_tick_runner_runs_exact_tick_count() {
+        let mut app = App::new();
+
+        app.insert_resource(Tick(0))
+            .add_system(Stage::FixedUpdate, |world| {
+                world
+                    .get_resource_mut::<Tick>()
+                    .expect("Tick should exist")
+                    .0 += 1;
+            });
+
+        app.run_fixed_ticks(3);
+
+        assert_eq!(app.world().get_resource::<Tick>(), Some(&Tick(3)));
+        assert_eq!(
+            app.world()
+                .get_resource::<FixedTime>()
+                .expect("FixedTime should exist")
+                .completed_ticks(),
+            3
+        );
+    }
+
+    #[test]
+    fn startup_runs_once_across_multiple_tick_batches() {
+        let mut app = App::new();
+
+        app.insert_resource(Tick(0))
+            .add_system(Stage::Startup, |world| {
+                world
+                    .get_resource_mut::<Tick>()
+                    .expect("Tick should exist")
+                    .0 += 10;
+            })
+            .add_system(Stage::FixedUpdate, |world| {
+                world
+                    .get_resource_mut::<Tick>()
+                    .expect("Tick should exist")
+                    .0 += 1;
+            });
+
+        app.run_fixed_ticks(2);
+        app.run_fixed_ticks(3);
+
+        assert_eq!(app.world().get_resource::<Tick>(), Some(&Tick(15)));
+    }
+
+    #[test]
+    fn cleanup_runs_after_each_fixed_tick() {
+        #[derive(Debug, Default, PartialEq)]
+        struct Log(Vec<&'static str>);
+
+        let mut app = App::new();
+
+        app.insert_resource(Log::default())
+            .add_system(Stage::FixedUpdate, |world| {
+                world
+                    .get_resource_mut::<Log>()
+                    .expect("Log should exist")
+                    .0
+                    .push("fixed");
+            })
+            .add_system(Stage::Cleanup, |world| {
+                world
+                    .get_resource_mut::<Log>()
+                    .expect("Log should exist")
+                    .0
+                    .push("cleanup");
+            });
+
+        app.run_fixed_ticks(2);
+
+        assert_eq!(
+            app.world().get_resource::<Log>(),
+            Some(&Log(vec!["fixed", "cleanup", "fixed", "cleanup"]))
+        );
+    }
+
+    #[test]
+    fn zero_ticks_still_runs_startup_once() {
+        let mut app = App::new();
+
+        app.insert_resource(Tick(0))
+            .add_system(Stage::Startup, |world| {
+                world
+                    .get_resource_mut::<Tick>()
+                    .expect("Tick should exist")
+                    .0 += 1;
+            });
+
+        app.run_fixed_ticks(0);
+        app.run_fixed_ticks(0);
+
+        assert_eq!(app.world().get_resource::<Tick>(), Some(&Tick(1)));
     }
 }

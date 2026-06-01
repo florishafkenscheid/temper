@@ -5,6 +5,7 @@ use crate::ecs::{
     command::Commands,
     component::{Component, ComponentId, ComponentRegistry},
     entity::{Entity, EntityAllocator},
+    event::{Event, Events},
     query::{QueryItem, QueryItem2, QueryItemMut},
     resource::{Resource, Resources},
     storage::table::{TableComponentKey, TableComponentValue, TableEntityLocation, TableStorage},
@@ -19,6 +20,7 @@ pub struct World {
     locations: HashMap<Entity, TableEntityLocation>,
     resources: Resources,
     commands: Commands,
+    events: Events,
 }
 
 impl Default for World {
@@ -37,6 +39,7 @@ impl World {
             locations: HashMap::new(),
             resources: Resources::new(),
             commands: Commands::new(),
+            events: Events::new(),
         }
     }
 
@@ -236,6 +239,19 @@ impl World {
         let commands = mem::take(&mut self.commands);
         commands.apply(self);
     }
+
+    pub fn send_event<T: Event>(&mut self, event: T) {
+        self.events.send(event);
+    }
+
+    #[must_use]
+    pub fn events<T: Event>(&self) -> &[T] {
+        self.events.read::<T>()
+    }
+
+    pub(crate) fn clear_events(&mut self) {
+        self.events.clear();
+    }
 }
 
 #[cfg(test)]
@@ -254,6 +270,9 @@ mod tests {
 
     #[derive(Debug, PartialEq)]
     struct Tick(u64);
+
+    #[derive(Debug, PartialEq)]
+    struct DamageEvent(u32);
 
     #[test]
     fn spawn_table_creates_alive_entity() {
@@ -932,5 +951,18 @@ mod tests {
 
         assert_eq!(world.get_component::<Velocity>(entity), Some(&Velocity(2)));
         assert_eq!(world.table_entity_count(), 1);
+    }
+
+    #[test]
+    fn world_stores_typed_events() {
+        let mut world = World::new();
+
+        world.send_event(DamageEvent(10));
+        world.send_event(DamageEvent(20));
+
+        assert_eq!(
+            world.events::<DamageEvent>(),
+            &[DamageEvent(10), DamageEvent(20)]
+        );
     }
 }

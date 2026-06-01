@@ -2,6 +2,7 @@ pub mod bundle;
 pub mod command;
 pub mod component;
 pub mod entity;
+pub mod event;
 pub mod query;
 pub mod resource;
 pub(crate) mod storage;

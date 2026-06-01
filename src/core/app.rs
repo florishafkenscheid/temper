@@ -100,6 +100,7 @@ impl App {
                 .advance();
 
             self.run_stage(Stage::Cleanup);
+            self.world.clear_events();
         }
     }
 
@@ -433,6 +434,74 @@ mod tests {
         assert_eq!(
             app.world().get_component::<Velocity>(entity),
             Some(&Velocity(2))
+        );
+    }
+
+    #[test]
+    fn cleanup_observes_events_sent_during_fixed_update() {
+        #[derive(Debug, PartialEq)]
+        struct DamageEvent(u32);
+
+        #[derive(Debug, Default, PartialEq)]
+        struct ObservedDamage(Vec<u32>);
+
+        let mut app = App::new();
+
+        app.insert_resource(ObservedDamage::default())
+            .add_system(Stage::FixedUpdate, |world| {
+                world.send_event(DamageEvent(10));
+            })
+            .add_system(Stage::Cleanup, |world| {
+                let damage = world
+                    .events::<DamageEvent>()
+                    .iter()
+                    .map(|event| event.0)
+                    .collect::<Vec<_>>();
+
+                world
+                    .get_resource_mut::<ObservedDamage>()
+                    .expect("ObservedDamage should exist")
+                    .0
+                    .extend(damage);
+            });
+
+        app.run_fixed_ticks(1);
+
+        assert_eq!(
+            app.world().get_resource::<ObservedDamage>(),
+            Some(&ObservedDamage(vec![10]))
+        );
+
+        assert!(app.world().events::<DamageEvent>().is_empty());
+    }
+
+    #[test]
+    fn events_do_not_survive_into_next_tick() {
+        #[derive(Debug, PartialEq)]
+        struct DamageEvent;
+
+        #[derive(Debug, Default, PartialEq)]
+        struct ObservedCounts(Vec<usize>);
+
+        let mut app = App::new();
+
+        app.insert_resource(ObservedCounts::default())
+            .add_system(Stage::Cleanup, |world| {
+                let count = world.events::<DamageEvent>().len();
+
+                world
+                    .get_resource_mut::<ObservedCounts>()
+                    .expect("ObservedCounts should exist")
+                    .0
+                    .push(count);
+            });
+
+        app.world_mut().send_event(DamageEvent);
+        app.run_fixed_ticks(2);
+
+        assert_eq!(
+            app.world().get_resource::<ObservedCounts>(),
+            Some(&ObservedCounts(vec![1, 0]))
         );
     }
 }

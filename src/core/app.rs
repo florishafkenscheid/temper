@@ -395,4 +395,44 @@ mod tests {
             Some(&Position(10))
         );
     }
+
+    #[test]
+    fn fixed_update_applies_component_insertion_after_stage() {
+        #[derive(Debug, PartialEq)]
+        struct Position(i32);
+
+        #[derive(Debug, PartialEq)]
+        struct Velocity(i32);
+
+        #[derive(Debug, Default, PartialEq)]
+        struct ObservedDuringSystem(bool);
+
+        let mut app = App::new();
+
+        let entity = app.world_mut().spawn((Position(10),));
+
+        app.insert_resource(ObservedDuringSystem::default())
+            .add_system(Stage::FixedUpdate, move |world| {
+                world.commands().insert_component(entity, Velocity(2));
+
+                let velocity_existed = world.get_component::<Velocity>(entity).is_some();
+
+                world
+                    .get_resource_mut::<ObservedDuringSystem>()
+                    .expect("ObservedDuringSystem should exist")
+                    .0 = velocity_existed;
+            });
+
+        app.run_fixed_ticks(1);
+
+        assert_eq!(
+            app.world().get_resource::<ObservedDuringSystem>(),
+            Some(&ObservedDuringSystem(false))
+        );
+
+        assert_eq!(
+            app.world().get_component::<Velocity>(entity),
+            Some(&Velocity(2))
+        );
+    }
 }

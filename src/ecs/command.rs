@@ -28,6 +28,15 @@ impl Commands {
         }));
     }
 
+    pub fn insert_component<T>(&mut self, entity: Entity, component: T)
+    where
+        T: Component,
+    {
+        self.queued.push(Box::new(move |world| {
+            world.insert_component(entity, component);
+        }));
+    }
+
     pub fn remove_component<T>(&mut self, entity: Entity)
     where
         T: Component,

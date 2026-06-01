@@ -877,4 +877,60 @@ mod tests {
         assert_eq!(world.get_component::<Position>(second), Some(&Position(20)));
         assert_eq!(world.get_component::<Velocity>(second), None);
     }
+
+    #[test]
+    fn apply_commands_inserts_queued_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+
+        world.commands().insert_component(entity, Velocity(2));
+
+        assert_eq!(world.get_component::<Velocity>(entity), None);
+
+        world.apply_commands();
+
+        assert_eq!(world.get_component::<Position>(entity), Some(&Position(10)));
+        assert_eq!(world.get_component::<Velocity>(entity), Some(&Velocity(2)));
+    }
+
+    #[test]
+    fn deferred_component_insertion_replaces_existing_value() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10), Velocity(1)));
+
+        world.commands().insert_component(entity, Velocity(5));
+        world.apply_commands();
+
+        assert_eq!(world.get_component::<Velocity>(entity), Some(&Velocity(5)));
+    }
+
+    #[test]
+    fn deferred_component_insertion_ignores_dead_entity() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+
+        world.commands().despawn(entity);
+        world.commands().insert_component(entity, Velocity(2));
+        world.apply_commands();
+
+        assert!(!world.is_alive(entity));
+        assert_eq!(world.entity_count(), 0);
+    }
+
+    #[test]
+    fn deferred_component_insertion_adds_first_table_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position(10),));
+        assert!(world.remove_component::<Position>(entity));
+
+        world.commands().insert_component(entity, Velocity(2));
+        world.apply_commands();
+
+        assert_eq!(world.get_component::<Velocity>(entity), Some(&Velocity(2)));
+        assert_eq!(world.table_entity_count(), 1);
+    }
 }
